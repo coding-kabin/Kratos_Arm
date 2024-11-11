@@ -1,4 +1,3 @@
-
 #include <BluetoothSerial.h>
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -7,16 +6,16 @@
 
 BluetoothSerial SerialBT;
 
-const int PWM1=5;
-const int PWM2= 21;
-const int DIR1 =18;
-const int DIR2 =19;
+const int PWM1 = 5;
+const int PWM2 = 14;
+const int DIR1 = 18;
+const int DIR2 = 12;
 #define BAUDRATE 115200
-
 
 // Movement and speed variables
 int speed = 30;
-int dir1=0, dir2=0;
+int dir1 = 0, dir2 = 0;
+bool paused = false;  // Flag to track paused state
 
 // Command definitions
 #define FORWARD 'F'
@@ -32,12 +31,12 @@ int dir1=0, dir2=0;
 
 void setup() {
   Serial.begin(115200);  // Start serial communication for debugging
-  SerialBT.begin("Kratos_ESP32");  // Bluetooth device name
+  SerialBT.begin("mini_rover");  // Bluetooth device name
   Serial.println("Bluetooth device started, now you can pair it with your smartphone!");
-  pinMode(PWM1,OUTPUT);
-  pinMode(PWM2,OUTPUT);
-  pinMode(DIR1,OUTPUT);
-  pinMode(DIR2,OUTPUT);
+  pinMode(PWM1, OUTPUT);
+  pinMode(PWM2, OUTPUT);
+  pinMode(DIR1, OUTPUT);
+  pinMode(DIR2, OUTPUT);
 }
 
 void loop() {
@@ -54,33 +53,43 @@ void executeCommand(char command) {
 
   switch (command) {
     case FORWARD:
-      dir1=0;
-      dir2=0;
-      Serial.println("F");
+      if (!paused) {  // Only move if not paused
+        dir1 = 0;
+        dir2 = 0;
+        Serial.println("F");
+      }
       break;
     case BACKWARD:
-      dir1=1;
-      dir2=1;
-      Serial.println("B");
+      if (!paused) {
+        dir1 = 1;
+        dir2 = 1;
+        Serial.println("B");
+      }
       break;
     case LEFT:
-      dir1=1;
-      dir2=0;
-      Serial.println("L");
+      if (!paused) {
+        dir1 = 0;
+        dir2 = 1;
+        Serial.println("L");
+      }
       break;
     case RIGHT:
-      dir1=0;
-      dir2=1;
-      Serial.println("R");
+      if (!paused) {
+        dir1 = 1;
+        dir2 = 0;
+        Serial.println("R");
+      }
       break;
     case CIRCLE:
       // Perform action for circle
       break;
     case CROSS:
       speed -= 10;
+      if (speed < 1) speed = 1;  // Prevent speed from going negative
       break;
     case TRIANGLE:
       speed += 10;
+      if (speed > 100) speed = 100;  // Cap the speed at 100
       break;
     case SQUARE:
       // Perform action for retrieving and sending status information
@@ -89,17 +98,29 @@ void executeCommand(char command) {
       // Perform action for starting a process or operation
       break;
     case PAUSE:
-      analogWrite(PWM1,0);
-      analogWrite(PWM2,0);
-      return;
+      paused = !paused;  // Toggle the paused state
+      if (paused) {
+        analogWrite(PWM1, 0);  // Stop motors
+        analogWrite(PWM2, 0);
+        Serial.println("Paused");
+      } else {
+        // If unpaused, resume with the last direction and speed
+        analogWrite(PWM1, speed);
+        analogWrite(PWM2, speed);
+        digitalWrite(DIR1, dir1);
+        digitalWrite(DIR2, dir2);
+        Serial.println("Resumed");
+      }
       break;
     default:
       Serial.println("Invalid command received!");
       break;
   }
-  digitalWrite(DIR1,dir1);
-  digitalWrite(DIR2,dir2);
-  analogWrite(PWM1,speed);
-  analogWrite(PWM2,speed);
 
+  if (!paused) {  // Only set PWM if not paused
+    digitalWrite(DIR1, dir1);
+    digitalWrite(DIR2, dir2);
+    analogWrite(PWM1, speed);
+    analogWrite(PWM2, speed);
+  }
 }
